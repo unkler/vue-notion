@@ -2,14 +2,19 @@
   <div class="main-page">
     <div class="left-menu" @click.self="onEditNoteEnd()">
       <!-- ノートリスト -->
-      <note-item
-        v-for="note in noteList"
-        :note="note"
-        :key="note.id"
-        @delete="onDeleteNote"
-        @editStart="onEditNoteStart"
-        @editEnd="onEditNoteEnd"
-      />
+      <draggable :list="noteList" group="notes">
+        <note-item
+          v-for="note in noteList"
+          :note="note"
+          :layer="1"
+          :key="note.id"
+          @delete="onDeleteNote"
+          @editStart="onEditNoteStart"
+          @editEnd="onEditNoteEnd"
+          @addChild="onAddChildNote"
+          @addNoteAfter="onAddNoteAfter"
+        />
+      </draggable>
 
       <!-- ノート追加ボタン -->
       <button class="transparent" @click="onClickButtonAdd">
@@ -25,10 +30,12 @@
 
 <script>
 import NoteItem from '@/components/parts/NoteItem.vue'
+import draggable from 'vuedraggable'
 
 export default {
   components: {
     NoteItem,
+    draggable,
   },
   data() {
     return {
@@ -36,27 +43,52 @@ export default {
     }
   },
   methods: {
-    onClickButtonAdd() {
-      this.noteList.push({
+    onAddNoteCommon(targetList, layer, index) {
+      layer = layer || 1
+      const note = {
         id: new Date().getTime().toString(16),
-        name: `新規ノート`,
+        name: `新規ノート-${layer}-${targetList.length}`,
         mouseover: false,
         editing: false,
-      })
+        children: [],
+        layer: layer,
+      }
+      if (index == null) {
+        targetList.push(note)
+      } else {
+        targetList.splice(index + 1, 0, note)
+      }
     },
-    onDeleteNote(deleteNote) {
-      const index = this.noteList.indexOf(deleteNote)
-      this.noteList.splice(index, 1)
+    onClickButtonAdd() {
+      this.onAddNoteCommon(this.noteList)
     },
-    onEditNoteStart(editNote) {
-      for (let note of this.noteList) {
+    onDeleteNote(parentNote, note) {
+      const targetList = parentNote == null ? this.noteList : parentNote.children
+      const index = targetList.indexOf(note)
+      targetList.splice(index, 1)
+    },
+    onEditNoteStart(editNote, parentNote) {
+      const targetList = parentNote == null ? this.noteList : parentNote.children
+      for (let note of targetList) {
         note.editing = (note.id === editNote.id)
+        this.onEditNoteStart(editNote, note)
       }
     },
-    onEditNoteEnd() {
-      for (let note of this.noteList) {
+    onEditNoteEnd(parentNote) {
+      const targetList = parentNote == null ? this.noteList : parentNote.children
+      for (let note of targetList) {
         note.editing = false
+        this.onEditNoteEnd(note)
       }
+    },
+    onAddChildNote(note) {
+      this.onAddNoteCommon(note.children, note.layer + 1)
+    },
+    onAddNoteAfter(parentNote, note) {
+      const targetList = parentNote == null ? this.noteList: parentNote.children
+      const layer = parentNote == null ? 1 : note.layer
+      const index = targetList.indexOf(note)
+      this.onAddNoteCommon(targetList, layer, index)
     }
   }
 }
